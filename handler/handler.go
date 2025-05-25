@@ -3,7 +3,6 @@ package handler
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
@@ -33,14 +32,6 @@ type UserCredentials struct {
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required"`
 }
-
-func Handler(w http.ResponseWriter, r *http.Request) {
-	once.Do(func() {
-		router = CreateRouter() 
-	})
-	router.ServeHTTP(w, r)
-}
-
 
 // Authentication Handlers
 func loginHandler(c *gin.Context) {
@@ -165,20 +156,24 @@ func CreateRouter() *gin.Engine {
 	  return router
 }
 
-// Private setup function (lowercase "s")
-func setupRouter() *gin.Engine {
+// Exported Handler for Vercel (capital "H")
+func Handler(w http.ResponseWriter, r *http.Request) {
+	once.Do(func() {
+		// Initialize router once (cold start)
+		_ = godotenv.Load() // Load from Vercel's environment (not .env files)
+		router = setupRouter()
+	})
+	router.ServeHTTP(w, r)
+}
 
-	_ = godotenv.Load(".env.local")
-	jwtSecret = []byte(os.Getenv("JWT_SECRET"))
-	
+func setupRouter() *gin.Engine {
 	r := gin.Default()
 
-	// CORS Middleware 
+	// CORS Middleware
 	r.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
@@ -186,9 +181,10 @@ func setupRouter() *gin.Engine {
 		c.Next()
 	})
 
-	// Your existing routes setup
+	// Auth Route
 	r.POST("/login", loginHandler)
-	
+
+	// Protected Routes
 	auth := r.Group("/")
 	auth.Use(authMiddleware)
 	{

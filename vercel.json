@@ -5,7 +5,8 @@
       "src": "handler/handler.go",
       "use": "@vercel/go",
       "config": {
-        "handler": "Handler"
+        "handler": "Handler",
+        "maxDuration": 30
       }
     }
   ],
