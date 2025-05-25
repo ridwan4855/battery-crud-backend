@@ -13,12 +13,24 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	// "github.com/vercel/vercel-go/http"
 )
+
+// Add this handler wrapper for Vercel
+func Handler(w http.ResponseWriter, r *http.Request) {
+	// Initialize router once
+	once.Do(func() {
+		router = createRouter()
+	})
+	router.ServeHTTP(w, r)
+}
 
 var (
 	batteries   []Battery
 	batteryLock sync.Mutex
 	jwtSecret   []byte
+	router      *gin.Engine
+	once        sync.Once
 )
 
 type Battery struct {
@@ -35,20 +47,13 @@ type UserCredentials struct {
 	Password string `json:"password" binding:"required"`
 }
 
-func main() {
-	// Load .env file
+func createRouter() *gin.Engine {
 	_ = godotenv.Load(".env.local")
-
 	jwtSecret = []byte(os.Getenv("JWT_SECRET"))
-	if len(jwtSecret) == 0 {
-        panic("JWT_SECRET environment variable not set")
-    }
-
-	fmt.Println("✅ Environment loaded successfully")
-
+	
 	r := gin.Default()
 
-	// CORS Middleware
+	// CORS Middleware 
 	r.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
@@ -58,14 +63,12 @@ func main() {
 			c.AbortWithStatus(204)
 			return
 		}
-		
 		c.Next()
 	})
 
-	// Auth Routes
+	// Your existing routes setup
 	r.POST("/login", loginHandler)
 	
-	// Protected Routes
 	auth := r.Group("/")
 	auth.Use(authMiddleware)
 	{
@@ -75,12 +78,15 @@ func main() {
 		auth.DELETE("/batteries/:id", deleteBattery)
 	}
 
-	port := os.Getenv("PORT")
-    if port == "" {
-        port = "8080"
-    }
+	return r
+}
 
-    r.Run(":" + port) 
+func main() {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	createRouter().Run(":" + port)
 }
 
 // Authentication Handlers
